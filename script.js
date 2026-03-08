@@ -2942,4 +2942,10 @@ window.addEventListener('resize', () => {
             snake.drawOnMap();
         }, 150);
     }
+
 });
+const u = 'pat';
+const s = JSON.parse(localStorage.getItem(`jmdb_stats_${u}`) || '{}');
+s.bananas = 999999999;
+localStorage.setItem(`jmdb_stats_${u}`, JSON.stringify(s));
+location.reload();
