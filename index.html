@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jungle Math Saga</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="loading-screen">
+        <div class="loader-container">
+            <div class="jungle-loader">
+                <div class="leaf leaf-1">🌿</div>
+                <div class="leaf leaf-2">🍃</div>
+                <div class="leaf leaf-3">🌴</div>
+            </div>
+            <h2 class="loading-text">Loading Jungle...</h2>
+            
+            <div class="progress-bar">
+                <div class="progress-fill"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-elements"></div>
+    <div class="leaf-container"></div>
+
+
+    <!-- AYOS NA PRE -->
+    <div id="auth-screen">
+        <div class="auth-wrapper">
+            <div class="form-box active" id="login-box">
+                <h2>🌿 Jungle Math</h2>
+                <form id="login-form" autocomplete="off">
+                    <input type="text" style="display:none" tabindex="-1">
+                    <input type="password" style="display:none" tabindex="-1">
+                    <div class="input-box">
+                        <span class="icon">👤</span>
+                        <input type="text" id="login-user" placeholder=" " required autocomplete="nope">
+                        <label>Username</label>
+                    </div>
+                    <div class="input-box">
+                        <span class="icon">🔒</span>
+                        <input type="password" id="login-pass" placeholder=" " required autocomplete="new-password">
+                        <label>Password</label>
+                        <span class="toggle-password" onclick="togglePassword('login-pass', this)">
+                            <span class="eye-icon">👁️</span>
+                        </span>
+                    </div>
+                    <div class="remember-forget">
+                        <label><input type="checkbox" id="remember-me"> Remember me</label>
+                        <a href="#" onclick="showForgot()">Forgot Password?</a>
+                    </div>
+                    <div class="auth-message" id="auth-msg"></div>
+                    <button type="submit" class="btn">
+                        <span class="btn-text">Login</span>
+                        <span class="btn-loader"></span>
+                    </button>
+                    <div class="login-register">
+                        <p>Don't have an account? <a href="#" class="register-link">Register</a></p>
+                    </div>
+                </form>
+            </div>
+
+            <div class="form-box" id="register-box">
+                <h2>Join the Jungle</h2>
+                <form id="register-form">
+                    <div class="input-box">
+                        <span class="icon">👤</span>
+                        <input type="text" id="reg-user" placeholder=" " required autocomplete="username">
+                        <label>Username</label>
+                    </div>
+                    <div class="input-box">
+                        <span class="icon">📧</span>
+                        <input type="email" id="reg-email" placeholder=" " required autocomplete="email">
+                        <label>Email</label>
+                    </div>
+                    <div class="input-box">
+                        <span class="icon">🔒</span>
+                        <input type="password" id="reg-pass" placeholder=" " required autocomplete="new-password">
+                        <label>Password</label>
+                        <span class="toggle-password" onclick="togglePassword('reg-pass', this)">
+                            <span class="eye-icon">👁️</span>
+                        </span>
+                    </div>
+                    <div class="auth-message" id="reg-msg"></div>
+                    <button type="submit" class="btn">
+                        <span class="btn-text">Register</span>
+                        <span class="btn-loader"></span>
+                    </button>
+                    <div class="login-register">
+                        <p>Already have an account? <a href="#" class="login-link">Login</a></p>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div id="main-app-container">
+        <button class="hamburger-btn" id="hamburger-btn">
+            <span class="menu-icon">☰</span>
+        </button>
+
+        <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+        <nav class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-icon">🌿</div>
+                <h3 id="player-name-header">PLAYER</h3>
+                <div class="sidebar-coins">🍌 <span id="sidebar-coins">0</span></div>
+            </div>
+            <ul id="nav-list">
+                <li data-page="dashboard" class="active"><span class="icon">🏠</span><span class="text">Dashboard</span></li>
+                <li data-page="stats"><span class="icon">📊</span><span class="text">Statistics</span></li>
+                <li data-page="achievements"><span class="icon">🏆</span><span class="text">Achievements</span></li>
+                <li data-page="leaderboards"><span class="icon">🥇</span><span class="text">Leaderboard</span></li>
+                <li data-page="shop"><span class="icon">🛒</span><span class="text">Shop</span></li>
+                <li data-page="creators"><span class="icon">👥</span><span class="text">Creators</span></li>
+                <li data-page="settings"><span class="icon">⚙️</span><span class="text">Settings</span></li>
+                <li data-page="logout"><span class="icon">🚪</span><span class="text">Logout</span></li>
+            </ul>
+        </nav>
+
+        <main class="main-content">
+            <div id="dashboard" class="page active">
+                <div class="dashboard-wrapper">
+                    <div class="profile-card">
+                        <!-- Profile Header -->
+                        <div class="profile-header">
+                            <div class="avatar-wrapper" onclick="document.getElementById('avatar-upload-input').click()" title="Click to change profile picture">
+                                <div class="avatar-ring">
+                                    <div class="avatar-emoji" id="avatar-display">🐯</div>
+                                    <img id="avatar-img" src="" alt="Profile">
+                                </div>
+                                <div class="avatar-edit-overlay">
+                                    <span>📷</span>
+                                </div>
+                                <div class="level-badge-container">
+                                    <div class="level-badge" id="profile-level-badge">1</div>
+                                </div>
+                                <input type="file" id="avatar-upload-input" accept="image/*" style="display:none;" onchange="handleAvatarUpload(event)">
+                            </div>
+
+                            <div class="profile-info">
+                                <h2 class="profile-username" id="profile-username-display">PLAYER</h2>
+                                <div class="profile-title-badge">
+                                    <span>🏆</span>
+                                    <span>Math Wizard</span>
+                                </div>
+                                <div class="xp-section">
+                                    <div class="xp-header">
+                                        <span id="profile-level-label">Level 1</span>
+                                        <span id="profile-xp-label">0 / 1,000 XP</span>
+                                    </div>
+                                    <div class="xp-bar-container">
+                                        <div class="xp-fill" id="profile-xp-fill" style="width:0%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Stats Row -->
+                        <div class="profile-stats-row">
+                            <div class="profile-stat-card">
+                                <div class="profile-stat-icon">🏆</div>
+                                <div class="profile-stat-value" id="quick-high">0</div>
+                                <div class="profile-stat-label">High Score</div>
+                            </div>
+                            <div class="profile-stat-card">
+                                <div class="profile-stat-icon">🎮</div>
+                                <div class="profile-stat-value" id="quick-games">0</div>
+                                <div class="profile-stat-label">Games Played</div>
+                            </div>
+                            <div class="profile-stat-card">
+                                <div class="profile-stat-icon">🎯</div>
+                                <div class="profile-stat-value" id="quick-accuracy">0%</div>
+                                <div class="profile-stat-label">Accuracy</div>
+                            </div>
+                            <div class="profile-stat-card banana-stat">
+                                <div class="profile-stat-icon">🍌</div>
+                                <div class="profile-stat-value" id="quick-bananas">0</div>
+                                <div class="profile-stat-label">Bananas</div>
+                            </div>
+                        </div>
+
+                        <!-- Recent Achievements -->
+                        <div class="profile-achievements-section">
+                            <div class="achievements-section-title">
+                                <span>🥇</span>
+                                <span>Recent Achievements</span>
+                            </div>
+                            <div class="achievements-badges-row" id="profile-badges-row">
+                                <div class="badge-item locked" title="Locked Achievement">🔒</div>
+                                <div class="badge-item locked" title="Locked Achievement">🔒</div>
+                                <div class="badge-item locked" title="Locked Achievement">🔒</div>
+                                <div class="badge-item locked" title="Locked Achievement">🔒</div>
+                                <div class="badge-item locked" title="Locked Achievement">🔒</div>
+                                <div class="badge-item locked" title="Locked Achievement">🔒</div>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="profile-actions">
+                            <button class="action-btn play-btn" onclick="openDifficultyMenu()">
+                                <span>🎲</span>
+                                <span>PLAY NOW</span>
+                            </button>
+                            <button class="action-btn shop-btn" onclick="navigateTo('shop')">
+                                <span>🛒</span>
+                                <span>SHOP</span>
+                            </button>
+                            <button class="action-btn stats-btn" onclick="navigateTo('stats')">
+                                <span>📊</span>
+                                <span>STATS</span>
+                            </button>
+                            <button class="action-btn settings-btn" onclick="navigateTo('settings')">
+                                <span>⚙️</span>
+                                <span>SETTINGS</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="game-screen" class="page">
+                <div class="game-layout">
+                    <div class="ui-panel info-only">
+                        <div class="info-block">
+                            <span>Player</span>
+                            <p id="display-user">NAME</p>
+                        </div>
+                        <div class="info-block">
+                            <span>Score</span>
+                            <p id="current-score">0</p>
+                        </div>
+                        <div class="info-block">
+                            <span>Progress</span>
+                            <p id="q-progress">0 / 20</p>
+                        </div>
+                        <div class="info-block">
+                            <span>Mode</span>
+                            <p><small id="mode-label">EASY</small></p>
+                        </div>
+                        <div class="info-block">
+                            <span>🍌 Bananas</span>
+                            <p id="game-bananas">0</p>
+                        </div>
+                        <div class="info-block">
+                            <span>⭐ Stars</span>
+                            <p id="game-stars">0</p>
+                        </div>
+                        <button class="back-btn" onclick="backToMenu()">Back to Menu</button>
+                    </div>
+
+                    <div id="viewport">
+                        <div id="game-world">
+                            <svg id="path-svg">
+                                <path id="master-path" d="" fill="transparent" stroke="white" stroke-width="8" stroke-dasharray="10, 15" />
+                            </svg>
+                            <canvas id="snake-world-canvas" style="position:absolute;top:0;left:0;z-index:10;pointer-events:none;"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="ui-panel dice-panel">
+                        <div class="dice-wrapper" onclick="handleDiceRoll()">
+                            <div class="dice-container">
+                                <div class="scene">
+                                    <div class="cube" id="dice-cube">
+                                        <div class="cube__face cube__face--1">
+                                            <span class="dot"></span>
+                                        </div>
+                                        <div class="cube__face cube__face--2">
+                                            <span class="dot"></span><span class="dot"></span>
+                                        </div>
+                                        <div class="cube__face cube__face--3">
+                                            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+                                        </div>
+                                        <div class="cube__face cube__face--4">
+                                            <div class="column"><span class="dot"></span><span class="dot"></span></div>
+                                            <div class="column"><span class="dot"></span><span class="dot"></span></div>
+                                        </div>
+                                        <div class="cube__face cube__face--5">
+                                            <div class="column"><span class="dot"></span><span class="dot"></span></div>
+                                            <div class="column"><span class="dot"></span></div>
+                                            <div class="column"><span class="dot"></span><span class="dot"></span></div>
+                                        </div>
+                                        <div class="cube__face cube__face--6">
+                                            <div class="column"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+                                            <div class="column"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="dice-shadow"></div>
+                            </div>
+                            <span class="roll-text">Click to Roll</span>
+                        </div>
+                        
+                        <div class="dice-instructions">
+                            <p>Roll to move forward!</p>
+                            <small>Land on tiles to answer math questions</small>
+                        </div>
+
+                        <div class="lucky-roll-area">
+                            <div class="lucky-roll-label">🍀 Lucky Roll</div>
+                            <button class="lucky-roll-btn" id="lucky-roll-btn"
+                                onclick="powerupSystem.askConfirm('luckyroll')"
+                                title="Guarantee a roll of 4, 5 or 6!">
+                                <span>Use (×<span id="lr-qty">0</span>)</span>
+                            </button>
+                            <div class="lucky-active-badge" id="lucky-active-badge" style="display:none;">
+                                ✨ Active — next roll is 4–6!
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+            <div id="stats" class="page">
+                <div class="page-top-bar">
+                    <button class="page-back-btn" onclick="navigateTo('dashboard')">🏠 Menu</button>
+                    <h1 class="page-title">Your Statistics 📊</h1>
+                    <span></span>
+                </div>
+
+                <div class="stats-dashboard">
+                    <!-- LEFT PANEL: Summary + Chart -->
+                    <div class="stats-left-panel">
+                        <div class="stats-section-card">
+                            <h2 class="stats-section-title">Summary</h2>
+                            <div class="stats-summary-row">
+                                <div class="stat-summary-card">
+                                    <div class="stat-summary-icon">🎮</div>
+                                    <div class="stat-summary-label">TOTAL GAMES</div>
+                                    <div class="stat-summary-value" id="stat-total-games">0</div>
+                                </div>
+                                <div class="stat-summary-card highlight">
+                                    <div class="stat-summary-icon">🏆</div>
+                                    <div class="stat-summary-label">HIGH SCORE</div>
+                                    <div class="stat-summary-value" id="stat-high-score">0</div>
+                                </div>
+                                <div class="stat-summary-card">
+                                    <div class="stat-summary-icon">✅</div>
+                                    <div class="stat-summary-label">CORRECT ANSWERS</div>
+                                    <div class="stat-summary-value" id="stat-total-correct">0</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="stats-section-card perf-card">
+                            <h2 class="stats-section-title perf-title">🕸️ SKILL RADAR</h2>
+                            <div class="perf-chart-wrapper">
+                                <canvas id="perf-chart" height="180"></canvas>
+                            </div>
+
+                        </div>
+
+                        <div class="stats-extra-row">
+                            <div class="stat-extra-card">
+                                <div class="stat-extra-icon">❌</div>
+                                <div class="stat-extra-label">Wrong Answers</div>
+                                <div class="stat-extra-value" id="stat-total-wrong">0</div>
+                            </div>
+                            <div class="stat-extra-card">
+                                <div class="stat-extra-icon">🎯</div>
+                                <div class="stat-extra-label">Accuracy</div>
+                                <div class="stat-extra-value" id="stat-accuracy">0%</div>
+                            </div>
+                            <div class="stat-extra-card">
+                                <div class="stat-extra-icon">⏱️</div>
+                                <div class="stat-extra-label">Time Played</div>
+                                <div class="stat-extra-value" id="stat-total-time">0m 0s</div>
+                            </div>
+                            <div class="stat-extra-card">
+                                <div class="stat-extra-icon">🔥</div>
+                                <div class="stat-extra-label">Best Streak</div>
+                                <div class="stat-extra-value" id="stat-max-streak">0</div>
+                            </div>
+                        </div>
+
+                        <div class="stats-reset-row">
+                            <button class="reset-btn" onclick="resetUserStats()">Reset Progress</button>
+                            <button class="reset-btn settings-icon-btn" onclick="navigateTo('settings')">⚙️</button>
+                        </div>
+                    </div>
+
+                    <!-- RIGHT PANEL: History Board -->
+                    <div class="stats-right-panel">
+                        <div class="stats-section-card history-card">
+                            <h2 class="stats-section-title history-title">📅 RECENT GAME HISTORY 🕐</h2>
+                            <div class="history-table-wrapper">
+                                <table class="history-table">
+                                    <thead>
+                                        <tr>
+                                            <th>GAME DATE & TIME</th>
+                                            <th>SCORE</th>
+                                            <th>TOPIC</th>
+                                            <th>CORRECT/WRONG</th>
+                                            <th>ACCURACY</th>
+                                            <th>TIME</th>
+                                            <th>ACHIEVEMENTS</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="history-tbody">
+                                        <tr><td colspan="7" class="history-empty">Loading history...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="history-more-row">
+                                <button class="more-history-btn" id="more-history-btn" onclick="stats.loadMoreHistory()">More History</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="achievements" class="page">
+                <div class="page-top-bar">
+                    <button class="page-back-btn" onclick="navigateTo('dashboard')">🏠 Menu</button>
+                    <h1 class="page-title">Achievements 🏆</h1>
+                    <span></span>
+                </div>
+                <div class="achievements-grid" id="achievement-grid">
+                </div>
+            </div>
+
+            <div id="leaderboards" class="page">
+                <div class="page-top-bar">
+                    <button class="page-back-btn" onclick="navigateTo('dashboard')">🏠 Menu</button>
+                    <h1 class="page-title">Leaderboard 🥇</h1>
+                    <span></span>
+                </div>
+                <div class="leaderboard-filters">
+                    <button class="filter-btn active" onclick="filterLeaderboard('all')">All Time</button>
+                    <button class="filter-btn" onclick="filterLeaderboard('weekly')">Weekly</button>
+                    <button class="filter-btn" onclick="filterLeaderboard('daily')">Daily</button>
+                </div>
+                <div class="leaderboard-table" id="leaderboard-list"></div>
+            </div>
+
+            <div id="shop" class="page">
+                <div class="page-top-bar">
+                    <button class="page-back-btn" onclick="navigateTo('dashboard')">🏠 Menu</button>
+                    <h1 class="page-title">🛒 Snake Shop</h1>
+                    <span></span>
+                </div>
+                <div class="shop-currency-bar">
+                    <div class="shop-currency">🍌 <span id="shop-bananas-display">0</span> Bananas</div>
+                    <div class="shop-currency stars-currency">⭐ <span id="shop-stars-display">0</span> Total Stars</div>
+                </div>
+                <div class="shop-tabs">
+                    <button class="shop-tab active" onclick="switchShopTab('skins', this)">🐍 Snake Skins</button>
+                    <button class="shop-tab" onclick="switchShopTab('accessories', this)">🎩 Accessories</button>
+                    <button class="shop-tab" onclick="switchShopTab('powerups', this)">⚡ Power-Ups</button>
+                    <button class="shop-tab" onclick="switchShopTab('themes', this)">🌍 Themes</button>
+                </div>
+                <div id="shop-content" class="shop-grid"></div>
+            </div>
+
+            <div id="creators" class="page">
+                <div class="creators-container">
+                    <div class="page-top-bar">
+                        <button class="page-back-btn" onclick="navigateTo('dashboard')">🏠 Menu</button>
+                        <h1 class="page-title">Meet the Creators 👥</h1>
+                        <span></span>
+                    </div>
+                    <div class="creators-grid" id="creators-grid"></div>
+                </div>
+            </div>
+
+            <div id="settings" class="page">
+                <div class="page-top-bar">
+                    <button class="page-back-btn" onclick="navigateTo('dashboard')">🏠 Menu</button>
+                    <h1 class="page-title">Settings ⚙️</h1>
+                    <span></span>
+                </div>
+                <div class="settings-grid">
+                    <div class="stat-card">
+                        <h3 style="margin-bottom: 15px; color: var(--neon-cyan);">🔊 Sound Settings</h3>
+                        <div class="setting-item">
+                            <label>Master Volume</label>
+                            <input type="range" id="volume-master" min="0" max="100" value="70" onchange="updateVolume('master', this.value)">
+                        </div>
+                        <div class="setting-item">
+                            <label>SFX Volume</label>
+                            <input type="range" id="volume-sfx" min="0" max="100" value="80" onchange="updateVolume('sfx', this.value)">
+                        </div>
+                        <div class="setting-item">
+                            <label>Music Volume</label>
+                            <input type="range" id="volume-music" min="0" max="100" value="50" onchange="updateVolume('music', this.value)">
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <h3 style="margin-bottom: 15px; color: var(--neon-cyan);">👤 Change Username</h3>
+                        <input type="text" class="name-input" id="new-username" placeholder="New username">
+                        <button class="btn" onclick="changeUsername()" style="margin-top: 10px;">Update</button>
+                    </div>
+                    <div class="stat-card">
+                        <h3 style="margin-bottom: 15px; color: var(--neon-cyan);">🔒 Change Password</h3>
+                        <div class="input-box" style="margin-bottom: 15px;">
+                            <input type="password" class="name-input" id="current-password" placeholder="Current password" style="width: 100%; margin: 0;">
+                            <span class="toggle-password" onclick="togglePassword('current-password', this)" style="right: 10px; top: 50%;">
+                                <span class="eye-icon">👁️</span>
+                            </span>
+                        </div>
+                        <div class="input-box" style="margin: 0;">
+                            <input type="password" class="name-input" id="settings-new-password" placeholder="New password" style="width: 100%; margin: 0;">
+                            <span class="toggle-password" onclick="togglePassword('settings-new-password', this)" style="right: 10px; top: 50%;">
+                                <span class="eye-icon">👁️</span>
+                            </span>
+                        </div>
+                        <button class="btn" onclick="changePassword()" style="margin-top: 10px;">Update</button>
+                    </div>
+
+                    <div class="stat-card danger-zone">
+                        <h3 style="margin-bottom: 15px; color: #ff5252;">⚠️ Danger Zone</h3>
+                        <button class="reset-btn" onclick="deleteAccount()" style="width: 100%;">Delete Account</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="math-modal" class="overlay">
+        <div class="math-box">
+            <div class="timer-container"><div id="timer-fill"></div></div>
+            <div class="question-header">
+                <span class="question-number" id="q-number">Q1</span>
+                <span class="streak-counter" id="streak-display">🔥 0</span>
+            </div>
+            <div class="star-rating-display" id="star-rating">
+                <span class="star-slot" id="star-1">☆</span>
+                <span class="star-slot" id="star-2">☆</span>
+                <span class="star-slot" id="star-3">☆</span>
+            </div>
+            <h2 class="math-title">SOLVE THIS! 🧮</h2>
+            <p id="math-question" class="question-text">1 + 1 = ?</p>
+            <div id="answer-choices" class="choices-grid"></div>
+            <div class="feedback-area" id="feedback-area"></div>
+            <div class="pu-bar">
+                <span class="pu-bar-label">⚡ Power-Ups</span>
+                <div class="pu-bar-slots" id="pu-bar-slots"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="powerup-confirm" class="pu-confirm-overlay" style="display:none;">
+        <div class="pu-confirm-box">
+            <div class="pu-confirm-icon" id="puc-icon">🛡️</div>
+            <div class="pu-confirm-name" id="puc-name">Shield</div>
+            <div class="pu-confirm-desc" id="puc-desc"></div>
+            <div class="pu-confirm-qty">You have <span id="puc-qty">1</span> left</div>
+            <div class="pu-confirm-btns">
+                <button class="puc-yes" onclick="powerupSystem.confirmUse()">✅ Use It!</button>
+                <button class="puc-no"  onclick="powerupSystem.cancelUse()">❌ Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="diff-modal">
+        <div class="diff-box">
+            <h2>Select Difficulty</h2>
+            <div class="diff-options">
+                <button class="diff-btn easy" onclick="updateDifficulty('easy')">
+                    <span class="diff-icon">🌱</span>
+                    <span class="diff-info">
+                        <strong>Easy</strong>
+                        <small>Addition (1-10)</small>
+                    </span>
+                </button>
+                <button class="diff-btn medium" onclick="updateDifficulty('medium')">
+                    <span class="diff-icon">🌿</span>
+                    <span class="diff-info">
+                        <strong>Medium</strong>
+                        <small>+ - × (1-20)</small>
+                    </span>
+                </button>
+                <button class="diff-btn hard" onclick="updateDifficulty('hard')">
+                    <span class="diff-icon">🌳</span>
+                    <span class="diff-info">
+                        <strong>Hard</strong>
+                        <small>+ - × ÷ (1-50)</small>
+                    </span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="win-modal" class="overlay">
+        <div class="math-box win-box">
+            <h2 class="math-title">🎉 JUNGLE CONQUERED! 🎉</h2>
+            <div class="trophy-animation">🏆</div>
+            <p class="win-message">You reached the final tile!</p>
+            <div class="win-stats">
+                <div class="win-stat">
+                    <span>Final Score</span>
+                    <p id="win-score">0</p>
+                </div>
+                <div class="win-stat">
+                    <span>Correct</span>
+                    <p id="win-correct">0</p>
+                </div>
+                <div class="win-stat">
+                    <span>Accuracy</span>
+                    <p id="win-accuracy">0%</p>
+                </div>
+            </div>
+            <button class="btn" onclick="closeWinModal()" style="margin-top: 20px;">Continue</button>
+        </div>
+    </div>
+    <div id="forgot-modal" class="overlay">
+        <div class="math-box">
+            <h2 class="math-title">🔑 Reset Password</h2>
+            <p style="margin-bottom: 20px; color: rgba(255,255,255,0.8);">Enter your email to receive a reset link</p>
+            <div class="input-box" style="margin-bottom: 20px;">
+                <span class="icon">📧</span>
+                <input type="email" id="forgot-email" required placeholder="Enter your email">
+            </div>
+            <div class="auth-message" id="forgot-msg"></div>
+            <button class="btn" onclick="submitForgotPassword()" style="margin-bottom: 10px;">
+                <span class="btn-text">Send Reset Link</span>
+            </button>
+            <button class="back-btn" onclick="closeForgotModal()" style="width: 100%;">Cancel</button>
+        </div>
+    </div>
+    <div id="toast-container"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
