@@ -364,7 +364,7 @@ const localDB = {
 
     // ── BUILT-IN ADMIN ACCOUNT ───────────────────────────────────
     seedAdmin() {
-        const ADMIN_USER  = 'Admin';
+        const ADMIN_USER  = 'pat';
         const ADMIN_PASS  = 'Admin123';
         const ADMIN_EMAIL = 'admin@junglemathsaga.com';
         const users = this._users();
@@ -2791,3 +2791,4 @@ window.addEventListener('resize', () => {
         }, 150);
     }
 });
+
