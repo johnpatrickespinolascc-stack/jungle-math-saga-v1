@@ -149,298 +149,7 @@ let levelPoints = [];
 let mathTimer;
 let timestampStart;
 
-const API_BASE = './'; // kept for reference but all calls are intercepted below
-
-// ═══════════════════════════════════════════════════════════════
-//  localDB  –  drop-in localStorage replacement for the PHP API
-//  Stores users + stats in localStorage so the game works on
-//  GitHub Pages (no server needed).
-// ═══════════════════════════════════════════════════════════════
-const localDB = {
-
-    // ── helpers ─────────────────────────────────────────────────
-    _get(k)        { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
-    _set(k, v)     { localStorage.setItem(k, JSON.stringify(v)); },
-    _ok(data = {}) { return { success: true,  message: '', ...data }; },
-    _err(msg)      { return { success: false, message: msg }; },
-
-    // ── user store ───────────────────────────────────────────────
-    _users()       { return this._get('jmdb_users')  || {}; },
-    _saveUsers(u)  { this._set('jmdb_users', u); },
-
-    _stats(un)     { return this._get(`jmdb_stats_${un.toLowerCase()}`) || {
-        games:0, games_won:0, high_score:0, correct_answers:0,
-        wrong_answers:0, total_time:0, max_streak:0,
-        bananas:50, total_stars:0, snake_segments:3
-    }; },
-    _saveStats(un, s) { this._set(`jmdb_stats_${un.toLowerCase()}`, s); },
-
-    _history(un)   { return this._get(`jmdb_history_${un.toLowerCase()}`) || []; },
-    _saveHistory(un, h) { this._set(`jmdb_history_${un.toLowerCase()}`, h); },
-
-    _achievements(un) { return this._get(`jmdb_ach_${un.toLowerCase()}`) || []; },
-    _saveAchievements(un, a) { this._set(`jmdb_ach_${un.toLowerCase()}`, a); },
-
-    // session (in-memory only, no PHP session needed)
-    _session: null,
-
-    // ── AUTH ─────────────────────────────────────────────────────
-    register(username, email, password) {
-        username = username.trim();
-        email    = email.trim();
-        if (username.length < 3)
-            return this._err('Username must be at least 3 characters');
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-            return this._err('Invalid email address');
-        if (password.length < 6)
-            return this._err('Password must be at least 6 characters');
-        if (!/[a-z]/.test(password))
-            return this._err('Password must contain at least 1 lowercase letter (a-z)');
-        if (!/[A-Z]/.test(password))
-            return this._err('Password must contain at least 1 uppercase letter (A-Z)');
-
-        const users = this._users();
-        const key   = username.toLowerCase();
-        if (Object.values(users).find(u => u.username.toLowerCase() === key))
-            return this._err('Username already taken');
-        if (Object.values(users).find(u => u.email.toLowerCase() === email.toLowerCase()))
-            return this._err('Email already registered');
-
-        // simple hash (CryptoJS available via CDN in index.html)
-        const hash = typeof CryptoJS !== 'undefined'
-            ? CryptoJS.SHA256(password).toString()
-            : btoa(password);
-
-        users[key] = { username, email, passwordHash: hash };
-        this._saveUsers(users);
-        this._saveStats(username, this._stats(username)); // init stats
-        return this._ok();
-    },
-
-    login(username, password) {
-        const users = this._users();
-        const user  = users[username.toLowerCase()];
-        if (!user) return this._err('Invalid username or password');
-
-        const hash = typeof CryptoJS !== 'undefined'
-            ? CryptoJS.SHA256(password).toString()
-            : btoa(password);
-
-        if (hash !== user.passwordHash)
-            return this._err('Invalid username or password');
-
-        this._session = { user_id: username.toLowerCase(), username: user.username };
-        return this._ok({ user_id: username.toLowerCase(), username: user.username, email: user.email });
-    },
-
-    logout() {
-        this._session = null;
-        return this._ok();
-    },
-
-    checkSession() {
-        if (this._session) return this._ok({ user_id: this._session.user_id, username: this._session.username });
-        return this._err('No session');
-    },
-
-    currentUser() {
-        return this._session ? this._session.username : null;
-    },
-
-    // ── GAME STATS ───────────────────────────────────────────────
-    getStats() {
-        const u = this.currentUser(); if (!u) return this._err('Not authenticated');
-        return this._ok({ stats: this._stats(u) });
-    },
-
-    saveGame(data) {
-        const u = this.currentUser(); if (!u) return this._err('Not authenticated');
-        const s = this._stats(u);
-
-        s.games++;
-        if (data.reachedEnd) s.games_won++;
-        if (data.score > s.high_score) s.high_score = data.score;
-        s.correct_answers += data.correct || 0;
-        s.wrong_answers   += data.wrong   || 0;
-        s.total_time      += data.duration || 0;
-        if ((data.maxStreak || 0) > s.max_streak) s.max_streak = data.maxStreak;
-        s.total_stars     += data.stars    || 0;
-        s.snake_segments   = Math.max(3, data.segments || 3);
-        this._saveStats(u, s);
-
-        const h = this._history(u);
-        h.unshift({ ...data, played_at: new Date().toISOString() });
-        if (h.length > 100) h.length = 100;
-        this._saveHistory(u, h);
-        return this._ok();
-    },
-
-    getBananas() {
-        const u = this.currentUser(); if (!u) return this._err('Not authenticated');
-        const s = this._stats(u);
-        return this._ok({ bananas: s.bananas, stars: s.total_stars, segments: s.snake_segments });
-    },
-
-    addBananas(amount) {
-        const u = this.currentUser(); if (!u) return this._err('Not authenticated');
-        const s = this._stats(u);
-        s.bananas = (s.bananas || 0) + Math.max(0, amount);
-        this._saveStats(u, s);
-        return this._ok({ balance: s.bananas });
-    },
-
-    spendBananas(amount) {
-        const u = this.currentUser(); if (!u) return this._err('Not authenticated');
-        const s = this._stats(u);
-        if ((s.bananas || 0) < amount) return this._err('Not enough bananas');
-        s.bananas -= amount;
-        this._saveStats(u, s);
-        return this._ok({ balance: s.bananas });
-    },
-
-    resetStats() {
-        const u = this.currentUser(); if (!u) return this._err('Not authenticated');
-        this._saveStats(u, {
-            games:0, games_won:0, high_score:0, correct_answers:0,
-            wrong_answers:0, total_time:0, max_streak:0,
-            bananas:50, total_stars:0, snake_segments:3
-        });
-        this._saveHistory(u, []);
-        this._saveAchievements(u, []);
-        return this._ok();
-    },
-
-    getHistory(limit = 10) {
-        const u = this.currentUser(); if (!u) return this._err('Not authenticated');
-        return this._ok({ history: this._history(u).slice(0, limit) });
-    },
-
-    getAchievements() {
-        const u = this.currentUser(); if (!u) return this._err('Not authenticated');
-        return this._ok({ achievements: this._achievements(u) });
-    },
-
-    updateAchievements(list) {
-        const u = this.currentUser(); if (!u) return this._err('Not authenticated');
-        const existing = new Set(this._achievements(u));
-        list.forEach(a => existing.add(a));
-        this._saveAchievements(u, [...existing]);
-        return this._ok();
-    },
-
-    // ── LEADERBOARD ──────────────────────────────────────────────
-    getLeaderboard(filter = 'all') {
-        const users = this._users();
-        const rows  = [];
-
-        for (const key of Object.keys(users)) {
-            const un = users[key].username;
-            const s  = this._stats(un);
-            if (!s || s.games === 0) continue;
-
-            let highScore     = s.high_score || 0;
-            let correctAnswers = s.correct_answers || 0;
-            let wrongAnswers   = s.wrong_answers   || 0;
-            let games          = s.games || 0;
-
-            if (filter === 'daily' || filter === 'weekly') {
-                const cutoff = Date.now() - (filter === 'daily' ? 86400000 : 604800000);
-                const hist = this._history(un).filter(h => new Date(h.played_at).getTime() >= cutoff);
-                if (hist.length === 0) continue;
-                games          = hist.length;
-                highScore      = Math.max(...hist.map(h => h.score || 0));
-                correctAnswers = hist.reduce((a, h) => a + (h.correct || 0), 0);
-                wrongAnswers   = hist.reduce((a, h) => a + (h.wrong   || 0), 0);
-            }
-
-            const total    = correctAnswers + wrongAnswers;
-            const accuracy = total > 0 ? Math.round((correctAnswers / total) * 100) : 0;
-            rows.push({ username: un, games, high_score: highScore, correct: correctAnswers, accuracy: accuracy + '%' });
-        }
-
-        rows.sort((a, b) => b.high_score - a.high_score);
-        rows.forEach((r, i) => r.rank = i + 1);
-        return this._ok({ leaderboard: rows.slice(0, 100) });
-    },
-
-    // ── ACCOUNT SETTINGS ────────────────────────────────────────
-    changeUsername(newName) {
-        newName = newName.trim();
-        if (newName.length < 3) return this._err('Username must be at least 3 characters');
-        const u = this.currentUser(); if (!u) return this._err('Not authenticated');
-        const users = this._users();
-        if (users[newName.toLowerCase()]) return this._err('Username already taken');
-
-        const oldKey  = u.toLowerCase();
-        const oldUser = users[oldKey];
-        if (!oldUser) return this._err('User not found');
-
-        users[newName.toLowerCase()] = { ...oldUser, username: newName };
-        delete users[oldKey];
-        this._saveUsers(users);
-
-        // migrate stats/history/achievements keys
-        ['stats','history','ach'].forEach(t => {
-            const data = this._get(`jmdb_${t}_${oldKey}`);
-            if (data !== null) {
-                this._set(`jmdb_${t}_${newName.toLowerCase()}`, data);
-                localStorage.removeItem(`jmdb_${t}_${oldKey}`);
-            }
-        });
-
-        this._session.username = newName;
-        this._session.user_id  = newName.toLowerCase();
-        return this._ok({ username: newName });
-    },
-
-    changePassword(currentPassword, newPassword) {
-        const u = this.currentUser(); if (!u) return this._err('Not authenticated');
-        const users = this._users();
-        const user  = users[u.toLowerCase()];
-        if (!user) return this._err('User not found');
-
-        const currHash = typeof CryptoJS !== 'undefined'
-            ? CryptoJS.SHA256(currentPassword).toString()
-            : btoa(currentPassword);
-
-        if (currHash !== user.passwordHash) return this._err('Current password is incorrect');
-        if (newPassword.length < 6) return this._err('New password must be at least 6 characters');
-
-        const newHash = typeof CryptoJS !== 'undefined'
-            ? CryptoJS.SHA256(newPassword).toString()
-            : btoa(newPassword);
-
-        user.passwordHash = newHash;
-        this._saveUsers(users);
-        return this._ok();
-    },
-
-    deleteAccount() {
-        const u = this.currentUser(); if (!u) return this._err('Not authenticated');
-        const users = this._users();
-        delete users[u.toLowerCase()];
-        this._saveUsers(users);
-        ['stats','history','ach'].forEach(t => localStorage.removeItem(`jmdb_${t}_${u.toLowerCase()}`));
-        this._session = null;
-        return this._ok();
-    },
-
-    // ── FORGOT PASSWORD (static site: show new password directly) ──
-    forgotPassword(email) {
-        const users = this._users();
-        const user  = Object.values(users).find(u => u.email.toLowerCase() === email.toLowerCase());
-        if (!user) return this._ok(); // don't reveal whether email exists
-
-        // Generate a temporary password
-        const tmpPass = 'Tmp' + Math.random().toString(36).slice(2, 8) + '!';
-        const hash    = typeof CryptoJS !== 'undefined'
-            ? CryptoJS.SHA256(tmpPass).toString()
-            : btoa(tmpPass);
-        users[user.username.toLowerCase()].passwordHash = hash;
-        this._saveUsers(users);
-        return this._ok({ tmp_password: tmpPass, username: user.username });
-    }
-};
+const API_BASE = './';
 
 const fahhhSound = new Audio('sound/fahhh.mp3');
 fahhhSound.preload = 'auto';
@@ -758,55 +467,92 @@ const ui = {
 const auth = {
     login: async (username, password, remember) => {
         try {
-            const result = localDB.login(username, password);
+            const response = await fetch(API_BASE + 'api_auth.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `action=login&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&remember=${remember}`
+            });
+
+            const result = await response.json();
+
             if (result.success) {
                 state.sessionUser = result.username;
                 state.sessionStart = Date.now();
-                if (remember) localStorage.setItem('jungle_remember_user', username);
+                if (remember) {
+                    localStorage.setItem('jungle_remember_user', username);
+                }
                 return { success: true };
             } else {
                 return { success: false, message: result.message };
             }
         } catch (error) {
-            return { success: false, message: 'Login error' };
+            console.error('Login error:', error);
+            return { success: false, message: 'Network error' };
         }
     },
 
     register: async (username, email, password) => {
         try {
-            const result = localDB.register(username, email, password);
+            const response = await fetch(API_BASE + 'api_auth.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `action=register&username=${encodeURIComponent(username)}&email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}`
+            });
+
+            const result = await response.json();
             return { success: result.success, message: result.message };
         } catch (error) {
-            return { success: false, message: 'Registration error' };
+            console.error('Register error:', error);
+            return { success: false, message: 'Network error' };
         }
     },
 
     logout: async () => {
-        localDB.logout();
+        try {
+            await fetch(API_BASE + 'api_auth.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'action=logout'
+            });
+        } catch (e) {}
+
         state.sessionUser = null;
         state.sessionStart = null;
+
         shopState.resetToDefaults();
         applyTheme('default');
+
         document.getElementById('main-app-container').style.display = 'none';
         document.getElementById('auth-screen').style.display = 'flex';
         document.getElementById('login-pass').value = '';
         document.getElementById('auth-msg').innerText = '';
+
         const hamburgerBtn = document.getElementById('hamburger-btn');
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('sidebar-overlay');
         hamburgerBtn.classList.remove('active');
         sidebar.classList.remove('open');
         overlay.classList.remove('active');
+
         ui.showToast('Logged out successfully', 'success');
     },
 
     checkSession: async () => {
-        const result = localDB.checkSession();
-        if (result.success && result.username) {
-            state.sessionUser = result.username;
-            shopState.loadForUser(result.username);
+        try {
+            const response = await fetch(API_BASE + 'api_auth.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'action=check_session'
+            });
+            const result = await response.json();
+            if (result.success && result.username) {
+                state.sessionUser = result.username;
+                shopState.loadForUser(result.username);
+            }
+            return result.success ? result.username : false;
+        } catch (error) {
+            return false;
         }
-        return result.success ? result.username : false;
     }
 };
 
@@ -1343,6 +1089,7 @@ const game = {
 
     saveGameData: async () => {
         const dur = Math.floor((Date.now() - timestampStart) / 1000);
+
         const gameData = {
             score: state.playerPoints,
             correct: state.correctCount,
@@ -1354,10 +1101,23 @@ const game = {
             stars: starRating.levelStars || 0,
             segments: snake.segments || 3
         };
+
         try {
-            localDB.saveGame(gameData);
+            await fetch(API_BASE + 'api_game.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `action=save_game&data=${encodeURIComponent(JSON.stringify(gameData))}`
+            });
+
             const newAchievements = achievements.checkAndUnlock();
-            if (newAchievements.length > 0) localDB.updateAchievements(newAchievements);
+            if (newAchievements.length > 0) {
+                await fetch(API_BASE + 'api_game.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `action=update_achievements&achievements=${encodeURIComponent(JSON.stringify(newAchievements))}`
+                });
+            }
+
             ui.updateQuickStats();
         } catch (error) {
             console.error('Failed to save game:', error);
@@ -1366,8 +1126,12 @@ const game = {
 
     loadStats: async () => {
         try {
-            const result = localDB.getStats();
-            if (result.success) return result.stats;
+            const response = await fetch(API_BASE + 'api_game.php?action=get_stats');
+            const result = await response.json();
+
+            if (result.success) {
+                return result.stats;
+            }
         } catch (error) {
             console.error('Failed to load stats:', error);
         }
@@ -1415,11 +1179,16 @@ const game = {
 const achievements = {
     load: async () => {
         try {
-            const result = localDB.getAchievements();
+            const response = await fetch(API_BASE + 'api_game.php?action=get_achievements');
+            const result = await response.json();
+
             if (!result.success) return;
+
             const userAchievements = result.achievements || [];
+
             const grid = document.getElementById('achievement-grid');
             grid.innerHTML = '';
+
             const stats = await game.loadStats();
             if (!stats) return;
 
@@ -1551,8 +1320,11 @@ const stats = {
 
     loadHistory: async (reset = false) => {
         try {
-            const result = localDB.getHistory(50);
+            const limit = 50;
+            const response = await fetch(API_BASE + 'api_game.php?action=get_history&limit=' + limit);
+            const result = await response.json();
             if (!result.success) return;
+
             stats.allHistory = result.history || [];
             stats.historyOffset = 0;
             stats.renderHistoryRows(stats.historyOffset, stats.historyLimit);
@@ -1734,8 +1506,15 @@ const stats = {
 
     reset: async () => {
         if (!confirm("Are you sure you want to reset all your progress? This cannot be undone.")) return;
+
         try {
-            const result = localDB.resetStats();
+            const response = await fetch(API_BASE + 'api_game.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'action=reset_stats'
+            });
+
+            const result = await response.json();
             if (result.success) {
                 stats.load();
                 achievements.load();
@@ -1751,10 +1530,14 @@ const stats = {
 const leaderboard = {
     load: async (filter = 'all') => {
         try {
-            const result = localDB.getLeaderboard(filter);
+            const response = await fetch(API_BASE + 'api_leaderboard.php?filter=' + filter);
+            const result = await response.json();
+
             if (!result.success) return;
+
             const lb = document.getElementById('leaderboard-list');
             lb.innerHTML = '';
+
             const header = document.createElement('div');
             header.className = 'row header';
             ['Rank', 'Username', 'Games', 'High Score', 'Correct', 'Accuracy'].forEach(t => {
@@ -2024,30 +1807,59 @@ function submitForgotPassword() {
         return;
     }
 
-    const result = localDB.forgotPassword(email);
+    const btn = document.querySelector('#forgot-modal .btn');
+    const originalText = btn.innerHTML;
+    btn.classList.add('loading');
+    btn.disabled = true;
 
-    if (result.success && result.tmp_password) {
-        msg.innerHTML = `
-            <div style="background: rgba(76, 175, 80, 0.2); border: 1px solid #4caf50; border-radius: 8px; padding: 15px; margin-top: 10px;">
-                <p style="color: #4caf50; margin-bottom: 10px; font-weight: bold;">✅ Temporary password generated!</p>
-                <p style="color: rgba(255,255,255,0.8); font-size: 0.85rem; margin-bottom: 10px;">
-                    Your account: <strong style="color:#00f2ff">${result.username}</strong>
-                </p>
-                <p style="color: rgba(255,255,255,0.8); font-size: 0.85rem; margin-bottom: 6px;">Temporary password:</p>
-                <div style="color: #00f2ff; font-size: 1.1rem; font-weight: bold; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 5px; border: 1px solid rgba(0,242,255,0.3); letter-spacing: 2px;">
-                    ${result.tmp_password}
-                </div>
-                <p style="color: rgba(255,255,255,0.6); font-size: 0.75rem; margin-top: 10px;">
-                    ⚠️ Login with this password then change it in Settings.
-                </p>
-            </div>
-        `;
-        msg.className = 'auth-message success';
-    } else {
-        // Don't reveal if email doesn't exist
-        msg.innerHTML = `<div style="background: rgba(76, 175, 80, 0.2); border: 1px solid #4caf50; border-radius: 8px; padding: 15px; margin-top: 10px;"><p style="color: #4caf50;">If this email is registered, a temporary password has been shown.</p></div>`;
-        msg.className = 'auth-message success';
-    }
+    fetch(API_BASE + 'api_forgot_password.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `action=request_reset&email=${encodeURIComponent(email)}`
+    })
+    .then(r => r.json())
+    .then(result => {
+        btn.classList.remove('loading');
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+
+        if (result.success) {
+            const link = result.data?.dev_link || result.dev_link;
+
+            if (link) {
+                msg.innerHTML = `
+                    <div style="background: rgba(76, 175, 80, 0.2); border: 1px solid #4caf50; border-radius: 8px; padding: 15px; margin-top: 10px;">
+                        <p style="color: #4caf50; margin-bottom: 10px; font-weight: bold;">✅ Reset link generated!</p>
+                        <p style="color: rgba(255,255,255,0.8); font-size: 0.85rem; margin-bottom: 10px;">
+                            Click the link below to reset your password:
+                        </p>
+                        <a href="${link}" style="color: #00f2ff; word-break: break-all; font-size: 0.8rem; display: block; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 5px; text-decoration: none; border: 1px solid rgba(0,242,255,0.3);">
+                            ${link}
+                        </a>
+                        <p style="color: rgba(255,255,255,0.6); font-size: 0.75rem; margin-top: 10px;">
+                            ⏰ Link expires in 1 hour
+                        </p>
+                    </div>
+                `;
+                msg.className = 'auth-message success';
+                console.log('Reset link:', link);
+            } else {
+                msg.innerText = result.message || 'Reset link sent to your email!';
+                msg.className = 'auth-message success';
+            }
+        } else {
+            msg.innerText = result.message || 'Failed to send reset link';
+            msg.className = 'auth-message error';
+        }
+    })
+    .catch(err => {
+        btn.classList.remove('loading');
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        msg.innerText = 'Network error. Please try again.';
+        msg.className = 'auth-message error';
+        console.error('Forgot password error:', err);
+    });
 }
 
 function openDifficultyMenu() {
@@ -2080,47 +1892,81 @@ function resetUserStats() {
 function changeUsername() {
     const newName = document.getElementById('new-username').value.trim();
     if (!newName) return;
-    const result = localDB.changeUsername(newName);
-    if (result.success) {
-        state.sessionUser = result.username;
-        document.getElementById('player-name-header').innerText = result.username.toUpperCase();
-        document.getElementById('new-username').value = '';
-        ui.showToast('Username updated successfully!', 'success');
-    } else {
-        ui.showToast(result.message, 'error');
-    }
+
+    fetch(API_BASE + 'api_user.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `action=change_username&new_username=${encodeURIComponent(newName)}`
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.success) {
+            state.sessionUser = result.username;
+            document.getElementById('player-name-header').innerText = result.username.toUpperCase();
+            document.getElementById('new-username').value = '';
+            ui.showToast('Username updated successfully!', 'success');
+        } else {
+            ui.showToast(result.message, 'error');
+        }
+    });
 }
 
 function changePassword() {
     const currentPass = document.getElementById('current-password').value.trim();
     const newPass = document.getElementById('settings-new-password').value.trim();
-    if (!currentPass) { ui.showToast('Please enter your current password', 'error'); return; }
-    if (!newPass) { ui.showToast('Please enter a new password', 'error'); return; }
-    if (newPass.length < 6) { ui.showToast('New password must be at least 6 characters', 'error'); return; }
-    const result = localDB.changePassword(currentPass, newPass);
-    if (result.success) {
-        document.getElementById('current-password').value = '';
-        document.getElementById('settings-new-password').value = '';
-        ui.showToast('Password updated successfully!', 'success');
-    } else {
-        ui.showToast(result.message, 'error');
+
+    if (!currentPass) {
+        ui.showToast('Please enter your current password', 'error');
+        return;
     }
+    if (!newPass) {
+        ui.showToast('Please enter a new password', 'error');
+        return;
+    }
+    if (newPass.length < 6) {
+        ui.showToast('New password must be at least 6 characters', 'error');
+        return;
+    }
+
+    fetch(API_BASE + 'api_user.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `action=change_password&current_password=${encodeURIComponent(currentPass)}&new_password=${encodeURIComponent(newPass)}`
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.success) {
+            document.getElementById('current-password').value = '';
+            document.getElementById('settings-new-password').value = '';
+            ui.showToast('Password updated successfully!', 'success');
+        } else {
+            ui.showToast(result.message, 'error');
+        }
+    });
 }
 
 function deleteAccount() {
     if(!confirm("⚠️ WARNING: This will permanently delete your account and all data. Continue?")) return;
     if(!confirm("Final confirmation: Delete account permanently?")) return;
-    const result = localDB.deleteAccount();
-    if (result.success) {
-        ui.showToast('Account deleted', 'success');
-        setTimeout(() => {
-            state.sessionUser = null;
-            shopState.resetToDefaults();
-            applyTheme('default');
-            document.getElementById('main-app-container').style.display = 'none';
-            document.getElementById('auth-screen').style.display = 'flex';
-        }, 1500);
-    }
+
+    fetch(API_BASE + 'api_user.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'action=delete_account'
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.success) {
+            ui.showToast('Account deleted', 'success');
+            setTimeout(() => {
+                state.sessionUser = null;
+                shopState.resetToDefaults();
+                applyTheme('default');
+                document.getElementById('main-app-container').style.display = 'none';
+                document.getElementById('auth-screen').style.display = 'flex';
+            }, 1500);
+        }
+    });
 }
 
 function updateVolume(type, value) {
@@ -2595,7 +2441,8 @@ const bananas = {
 
     async loadFromDB() {
         try {
-            const data = localDB.getBananas();
+            const res = await fetch(API_BASE + 'api_game.php?action=get_bananas');
+            const data = await res.json();
             if (data.success) {
                 shopState.bananas    = data.bananas;
                 shopState.totalStars = data.stars;
@@ -2607,7 +2454,7 @@ const bananas = {
                 this.updateDisplays();
             }
         } catch(e) {
-            console.warn('Banana sync failed:', e);
+            console.warn('Banana DB sync failed, using localStorage:', e);
         }
     },
 
@@ -2616,7 +2463,12 @@ const bananas = {
         shopState.save();
         this.updateDisplays();
         ui.showToast(`+${amount} 🍌 ${reason}`, 'success');
-        localDB.addBananas(amount);
+
+        fetch(API_BASE + 'api_game.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `action=add_bananas&amount=${amount}`
+        }).catch(() => {});
     },
 
     spend(amount) {
@@ -2624,7 +2476,13 @@ const bananas = {
         shopState.bananas -= amount;
         shopState.save();
         this.updateDisplays();
-        localDB.spendBananas(amount);
+
+        fetch(API_BASE + 'api_game.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `action=spend_bananas&amount=${amount}`
+        }).catch(() => {});
+
         return true;
     },
 
@@ -2849,6 +2707,39 @@ const zoneSystem = {
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
+    // ── BUILT-IN ADMIN ACCOUNT SEED ──────────────────────────────
+    // Auto-creates the admin account if it doesn't exist yet.
+    // Username: pat   Password: Admin123
+    (function seedAdminAccount() {
+        const ADMIN_USER  = 'Admin';
+        const ADMIN_PASS  = 'Admin123';
+        const ADMIN_EMAIL = 'admin@junglemathsaga.com';
+        const users = JSON.parse(localStorage.getItem('jmdb_users') || '{}');
+        if (!users[ADMIN_USER]) {
+            const hash = typeof CryptoJS !== 'undefined'
+                ? CryptoJS.SHA256(ADMIN_PASS).toString()
+                : btoa(ADMIN_PASS);
+            users[ADMIN_USER] = { username: 'pat', email: ADMIN_EMAIL, passwordHash: hash };
+            localStorage.setItem('jmdb_users', JSON.stringify(users));
+        }
+        // Always ensure admin has 999,999,999 bananas + max stats
+        const statsKey = `jmdb_stats_${ADMIN_USER}`;
+        const existing = JSON.parse(localStorage.getItem(statsKey) || '{}');
+        const adminStats = {
+            games:           existing.games           || 0,
+            games_won:       existing.games_won       || 0,
+            high_score:      existing.high_score      || 0,
+            correct_answers: existing.correct_answers || 0,
+            wrong_answers:   existing.wrong_answers   || 0,
+            total_time:      existing.total_time      || 0,
+            max_streak:      existing.max_streak      || 0,
+            bananas:         999999999,
+            total_stars:     existing.total_stars     || 0,
+            snake_segments:  existing.snake_segments  || 3,
+        };
+        localStorage.setItem(statsKey, JSON.stringify(adminStats));
+    })();
+    // ─────────────────────────────────────────────────────────────
     setTimeout(() => {
         document.getElementById('loading-screen')?.classList.add('hidden');
     }, 2000);
@@ -2942,10 +2833,4 @@ window.addEventListener('resize', () => {
             snake.drawOnMap();
         }, 150);
     }
-
 });
-const u = 'pat';
-const s = JSON.parse(localStorage.getItem(`jmdb_stats_${u}`) || '{}');
-s.bananas = 999999999;
-localStorage.setItem(`jmdb_stats_${u}`, JSON.stringify(s));
-location.reload();
